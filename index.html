@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>YOLO Mobile Detection</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <style>
+        body { margin: 0; background: black; display: flex; justify-content: center; }
+        video { position: absolute; width: 100%; height: 100%; object-fit: cover; }
+        canvas { position: absolute; width: 100%; height: 100%; z-index: 2; }
+    </style>
+</head>
+<body>
+    <video id="cam" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+
+    <script>
+        const video = document.getElementById('cam');
+        const canvas = document.getElementById('overlay');
+        let model;
+
+        async function init() {
+            // 1. Setup Camera (Use back camera)
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'environment' },
+                audio: false
+            });
+            video.srcObject = stream;
+
+            // 2. Load Model
+            console.log("Loading model...");
+            // Make sure the path matches your folder name
+            model = await tf.loadGraphModel('./best11n_web_model/model.json');
+            console.log("Model loaded!");
+
+            // 3. Start Detection Loop
+            detect();
+        }
+
+        async function detect() {
+            if (!video.videoWidth) {
+                requestAnimationFrame(detect);
+                return;
+            }
+
+            // Pre-process image: Resize to 640x640, Normalize to 0-1
+            const input = tf.tidy(() => {
+                return tf.image.resizeBilinear(tf.browser.fromPixels(video), [640, 640])
+                    .div(255.0)
+                    .expandDims(0);
+            });
+
+            // Run Inference
+            const results = await model.executeAsync(input);
+            
+            // Note: You will see raw tensors here. 
+            // You need a "Non-Max Suppression" function to convert these 
+            // raw numbers into [x, y, width, height, class] boxes.
+            console.log(results); 
+
+            tf.dispose(input); // Clear memory
+            tf.dispose(results);
+            
+            requestAnimationFrame(detect);
+        }
+
+        init();
+    </script>
+</body>
+</html>
